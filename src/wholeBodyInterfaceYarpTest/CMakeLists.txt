@@ -9,8 +9,13 @@ PROJECT(${PROJECTNAME})
 find_package(YARP)
 find_package(ICUB)
 
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${YARP_MODULE_PATH})
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${ICUB_MODULE_PATH})
+
+find_package(Eigen3)
+find_package(Orocos-KDL)
+find_package(kdl_codyco)
 
 FILE(GLOB folder_source ./*.cpp)
 FILE(GLOB folder_header ./*.h)
@@ -34,11 +39,14 @@ ENDIF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
 INCLUDE_DIRECTORIES(${YARP_INCLUDE_DIRS}
                     ${wbi_INCLUDE_DIRS}
                     ${wbiy_INCLUDE_DIRS}
-                    ${skinDynLib_INCLUDE_DIRS})
+                    ${skinDynLib_INCLUDE_DIRS}
+                    ${Orocos-KDL_INCLUDE_DIRS}
+                    ${kdl_codyco_INCLUDE_DIRS}
+                    ${EIGEN3_INCLUDE_DIR})
 
 ADD_EXECUTABLE(${PROJECTNAME} ${folder_source} ${folder_header})
 
-TARGET_LINK_LIBRARIES(${PROJECTNAME} ${YARP_LIBRARIES} skinDynLib wbi wbiy)
+TARGET_LINK_LIBRARIES(${PROJECTNAME} ${YARP_LIBRARIES} skinDynLib wbi wbiy iDynTree iDyn ${Orocos-KDL_LIBRARIES} ${kdl_codyco_LIBRARIES})
 
 IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT) 
 SET(CMAKE_INSTALL_PREFIX $ENV{ICUB_DIR} CACHE PATH "installation prefix" FORCE)

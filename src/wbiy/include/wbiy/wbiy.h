@@ -35,6 +35,9 @@
 #endif
 #include <vector>
 
+//iDynTree stuff
+#include <iCub/iDynTree/iCubTree.h>
+
 /* CODE UNDER DEVELOPMENT */
 
 namespace wbiy
@@ -190,6 +193,7 @@ namespace wbiy
         
         bool openDrivers(int bodyPart);
         
+        
     public:
         // *** CONSTRUCTORS ***
         yarpWholeBodyActuators(const char* _name, const char* _robotName, const std::vector<std::string> &_bodyPartNames);
@@ -298,8 +302,38 @@ namespace wbiy
     class icubWholeBodyModel: public wbi::iWholeBodyModel
     {
     protected:
-        wbi::LocalIdList     jointIdList;
+        wbi::LocalIdList jointIdList;
+        int dof;
+        iCub::iDynTree::iCubTree * p_icub_model;
+        iCub::iDynTree::iCubTree_version_tag version;
+        
+        yarp::sig::Matrix world_base_transformation;
+        
+        yarp::sig::Vector v_base, a_base;
+        yarp::sig::Vector omega_base, domega_base;
+        
+        yarp::sig::Vector all_q;
+        yarp::sig::Vector all_dq;
+        yarp::sig::Vector all_ddq;
+        
+        bool convertBasePose(const double *xBase, yarp::sig::Matrix & H_world_base);
+        bool convertBaseVelocity(const double *dxB, yarp::sig::Vector & v_b, yarp::sig::Vector & omega_b);
+        bool convertBaseAcceleration(const double *ddxB, yarp::sig::Vector & a_b, yarp::sig::Vector & domega_b);
+        
+        bool convertQ(const double *q, yarp::sig::Vector & q_complete);
+        bool convertDQ(const double *dq, yarp::sig::Vector & dq_complete);
+        bool convertDDQ(const double *ddq, yarp::sig::Vector & ddq_complete);
+        
     public:
+         // *** CONSTRUCTORS ***
+        /**
+         * 
+         * @param head_version the version of the head of the iCub (1 or 2, default: 2)
+         * @param legs_version the version of the legs of the iCub (1 or 2, default: 2)
+         * @param initial_q the initial value for all the 32 joint angles (default: all 0)
+         */
+        icubWholeBodyModel(int head_version=2, int legs_version=2, double* initial_q=0);
+        
         virtual bool init();
         virtual bool close();
         virtual int getDoFs();

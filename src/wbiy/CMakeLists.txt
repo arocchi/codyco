@@ -8,6 +8,10 @@ PROJECT(${PROJECTNAME})
 
 find_package(ICUB)
 
+find_package(Eigen3 REQUIRED)
+find_package(Orocos-KDL REQUIRED)
+find_package(kdl_codyco REQUIRED)
+
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
      IF(CMAKE_COMPILER_IS_GNUCC)
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
@@ -28,7 +32,11 @@ INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/include
 					  ${YARP_INCLUDE_DIRS}
                       ${skinDynLib_INCLUDE_DIRS}
                       ${ctrlLib_INCLUDE_DIRS}
-                      ${wbi_INCLUDE_DIRS})
+                      ${wbi_INCLUDE_DIRS}
+                      ${iDynTree_INCLUDE_DIRS}
+                      ${Orocos-KDL_INCLUDE_DIRS}
+                      ${kdl_codyco_INCLUDE_DIRS}
+                      ${EIGEN3_INCLUDE_DIR})
 
 ADD_LIBRARY(${PROJECTNAME} ${folder_source} ${folder_header})
 
@@ -36,7 +44,10 @@ TARGET_LINK_LIBRARIES(${PROJECTNAME}
                                      ${YARP_LIBRARIES}
                                      skinDynLib
                                      ctrlLib
-                                     wbi)
+                                     wbi
+                                     iDynTree
+                                     ${Orocos-KDL_LIBRARIES} 
+                                     ${kdl_codyco_LIBRARIES})
 
 icub_export_library(${PROJECTNAME} INTERNAL_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/include
                                    DEPENDS wbi
