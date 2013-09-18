@@ -12,6 +12,9 @@
 #include <math.h>
 #include <stdio.h>
 
+#ifdef EXPERIMENTAL_COMSTEPPER_HQP
+	#include <qpOASES.hpp>
+#endif
 
 #include <iostream>
 #include <iomanip>
@@ -847,7 +850,13 @@ void comStepperThread::run()
                 break;
         }
         //dq = computeControl(jCOM, jR2L, eCOM, eR2L);
+
+#ifdef EXPERIMENTAL_COMSTEPPER_HQP
+	dq = computeControlHQP(jCOM, hR2L, eCOM, eR2L);
+#else
         dq = computeControlPrioritized(jCOM, jR2L, eCOM, eR2L);
+#endif
+
         executeControl(dq);
     }
     
@@ -1071,6 +1080,108 @@ Vector comStepperThread::computeControlPrioritized(Matrix J1, Matrix J2, Vector 
     
     return dq*CTRL_RAD2DEG;
 }
+
+#ifdef EXPERIMENTAL_COMSTEPPER_HQP
+// J1: Jcom, J2: J_R2L
+Vector comStepperThread::computeControlHQP(Matrix J1, Matrix J2, Vector e1, Vector e2)
+{
+    static int nRun = 0;
+    int njTot = njLL + njRL + njTO;
+    Vector dq(njTot, 0.0), eq(njTot, 0.0);  // dq: desired joint vel; eq: joint space position error
+    Matrix J = pile(J1, J2), Smask(njTot, njTot);
+    Vector e = cat(e1, e2);
+    
+    if (current_phase == RIGHT_SUPPORT || current_phase == BOTH_SUPPORT)
+    {
+        Smask.setSubmatrix(Smask_r2l_swg, 0, 0);        // left leg swings
+        Smask.setSubmatrix(Smask_r2l_sup, njLL, njLL);  // right leg supports
+    }
+    else
+    {
+        Smask.setSubmatrix(Smask_r2l_sup, 0, 0);        // left leg supports
+        Smask.setSubmatrix(Smask_r2l_swg, njLL, njLL);  // right leg swings
+    }
+    Smask.setSubmatrix(Smask_com_torso, njLL+njRL, njLL+njRL);
+    
+    eq.setSubvector(0, qrLL-qLL);   // angles in deg!
+    eq.setSubvector(njLL, qrRL-qRL);
+    eq.setSubvector(njLL+njRL, qrTO-qTO);
+    //fprintf(stderr, "qrLL is: %s\n", qrRL.toString().c_str());
+    //fprintf(stderr, "qLL  is: %s\n", qLL.toString().c_str());
+    
+    for (int i = 0; i < njTot; i++)
+        if (Smask(i, i) == 1.0)
+            eq(i) = 0.0;
+
+
+    /*
+      We solve a single QP where the priority between
+      different tasks is set by using a weight matrix Q
+
+      min         (Ax - b)'Q(Ax - b)
+      subj to     l <=   x <=  u
+    */
+    
+      /*
+        CGAL::Quadratic_program solves by default a quadratic problem in the form
+        min        x'Dx + c'x + c0
+        subj to         Ax == b
+                   l <=  x <= u
+       */
+
+    int njTask1 = J.rows();              // size for task 1
+    double dT = getRate()/1000.0;        // thread rate in ms
+    Matrix D1= J.transposed()*J;         // size of problem is bigger than the size of task because we need the extra slack variables
+    Vector c1 = -2*J.transposed()*e;
+    Matrix A0 = zeros(1,3);
+    double b0 = 0;
+    double c01 = dot(e,e);
+
+    Matrix D2(eye(njTot,njTot));
+    Vector c2 = -2*eq*CTRL_DEG2RAD;
+    double c02 = dot(eq*CTRL_DEG2RAD,eq*CTRL_DEG2RAD);
+
+    Vector u(njTot); Vector l(njTot);
+    u.setSubvector(0, (qMaxLL-qLL)/dT);         l.setSubvector(0, (qMinLL-qLL)/dT);
+    u.setSubvector(njLL, (qMaxRL-qRL)/dT);      l.setSubvector(njLL, (qMinRL-qRL)/dT);
+    u.setSubvector(njLL+njRL, (qMaxTO-qTO)/dT); l.setSubvector(njLL+njRL, (qMinTO-qTO)/dT);
+
+    USING_NAMESPACE_QPOASES
+    /* Setting up QProblem object. */
+    Options qpOasesOptionsqp1;
+    Options qpOasesOptionsqp2;
+    qpOasesOptionsqp1.printLevel = PL_NONE;
+    qpOasesOptionsqp1.epsRegularisation = PINV_DAMP;
+    qpOasesOptionsqp2.printLevel = PL_NONE;
+    QProblemB qp1( njTot, HST_SEMIDEF);
+    qp1.setOptions( qpOasesOptionsqp1 );
+    QProblem qp2( njTot, njTask1, HST_IDENTITY);
+    qp2.setOptions( qpOasesOptionsqp2 );
+    Vector dq1; dq1.resize(njTot);
+    c1 *= .5; c2 *= .5;
+    /* Solve first QP. */
+    int nWSR;
+
+    nWSR = 2^16;
+    qp1.init( D1.data(),c1.data(),l.data(),u.data(),nWSR,0 );
+    qp1.getPrimalSolution( dq1.data() );
+    /* Solve second QP. */
+    Vector b2 = J*dq1;
+    nWSR = 2^16;
+    qp2.init( D2.data(),c2.data(),J.data(),l.data(),u.data(),b2.data(),b2.data(),nWSR,0);
+    qp2.getPrimalSolution( dq.data() );
+
+
+    // Vector err(pi_a.getCol(0).size()+6-1);
+    // err.zero();
+    // err.setSubvector(0, pi_a.submatrix(1, 2, 0, 0).getCol(0));
+    // err.setSubvector(pi_a.getCol(0).size()-1, ep.getCol(0));
+    // err.setSubvector(pi_a.getCol(0).size()+3-1, eo.getCol(0));
+    // checkControl(q, dq, err, J, e);
+
+    return dq*CTRL_RAD2DEG;
+}
+#endif
 
 Vector comStepperThread::computeControlTriangular(Matrix J1, Matrix J2, Vector e1, Vector e2)
 {

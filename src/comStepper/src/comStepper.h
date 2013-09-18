@@ -276,6 +276,9 @@ public:
     Vector computeControl(Matrix j1, Matrix j2, Vector e1, Vector e2);
     Vector computeControlPrioritized(Matrix j1, Matrix j2, Vector e1, Vector e2);
     Vector computeControlTriangular(Matrix J1, Matrix J2, Vector e1, Vector e2);
+#ifdef EXPERIMENTAL_COMSTEPPER_HQP
+    Vector computeControlHQP(Matrix j1, Matrix j2, Vector e1, Vector e2);
+#endif
     void executeControl(Vector dq);
     void checkControl(Vector q, Vector dq, Vector err, Matrix J, Vector e);
     double separation(Vector qRL, Vector qLL);

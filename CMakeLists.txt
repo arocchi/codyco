@@ -107,6 +107,9 @@ mark_as_advanced(LIBRARY_OUTPUT_PATH)
 include(CoDyCoFindDependencies)
 
 
+### enable experimental computation of control vector by stack of QP
+option(EXPERIMENTAL_COMSTEPPER_HQP "ComStepper control using HQP: requires qpOASES" FALSE)
+mark_as_advanced(EXPERIMENTAL_COMSTEPPER_HQP)
 
 
 ### enable testing
